@@ -6,8 +6,21 @@ const cors = require('cors');
 const xlsx = require('xlsx');
 
 const app = express();
-app.use(cors());
 app.use(bodyParser.json());
+
+// CORS configuration
+const allowedOrigins = ['https://makeit-fawn.vercel.app'];
+app.use(cors({
+    origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    }
+}));
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -31,13 +44,11 @@ app.post('/api/submit', async (req, res) => {
     const { name, email, phone } = req.body;
 
     try {
-        // Check if the user with the same email or phone already exists
         const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
         if (existingUser) {
             return res.status(400).json({ message: 'A submission with this email or phone number already exists.' });
         }
 
-        // If no match found, save the new user
         const newUser = new User({ name, email, phone });
         await newUser.save();
         res.status(201).json({ message: 'User submitted successfully!' });
@@ -49,32 +60,25 @@ app.post('/api/submit', async (req, res) => {
 
 // Route to download responses in Excel format
 app.post('/api/download', async (req, res) => {
-    const { password } = req.body; // Get password from request body
+    const { password } = req.body;
 
-    // Check if the password matches
     if (password !== process.env.ADMIN_PASSWORD) {
         return res.status(403).json({ message: 'Unauthorized access.' });
     }
 
     try {
-        const users = await User.find().lean(); // Fetch users and convert to plain JavaScript objects
-
-        // Prepare the data for Excel
+        const users = await User.find().lean();
         const excelData = users.map(user => ({
             Name: user.name,
             Email: user.email,
             Phone: user.phone,
-            SubmittedAt: user.createdAt, // Add timestamp
+            SubmittedAt: user.createdAt,
         }));
 
-        // Create a new workbook and a new worksheet
         const workbook = xlsx.utils.book_new();
         const worksheet = xlsx.utils.json_to_sheet(excelData);
-
-        // Add the worksheet to the workbook
         xlsx.utils.book_append_sheet(workbook, worksheet, 'Responses');
 
-        // Create a buffer and send the Excel document
         const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
         res.set({
             'Content-Disposition': 'attachment; filename="responses.xlsx"',
