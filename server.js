@@ -6,14 +6,6 @@ const cors = require('cors');
 const xlsx = require('xlsx');
 
 const app = express();
-
-// Update CORS options to allow only your frontend
-/*const corsOptions = {
-    origin: 'https://makeit-fawn.vercel.app', // Your frontend URL
-    optionsSuccessStatus: 200,
-    methods: ['GET', 'POST', 'PUT', 'DELETE'], // Allow necessary methods
-    allowedHeaders: ['Content-Type', 'Authorization'] // Add any other headers you need
-};*/
 app.use(cors());
 app.use(bodyParser.json());
 
