@@ -5,13 +5,7 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const xlsx = require('xlsx');
-
-const allowedOrigins = ['https://makeit-fawn.vercel.app/'];
-app.use(cors({
-    origin: allowedOrigins,
-    methods: ['GET', 'POST'], // Add any other methods you want to allow
-    credentials: true // If you need to send cookies or authentication headers
-}));
+app.use(cors());
 app.use(bodyParser.json());
 
 // MongoDB connection
