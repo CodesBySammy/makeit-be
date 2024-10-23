@@ -1,13 +1,11 @@
 require('dotenv').config(); // Load environment variables
 const express = require('express');
+const app = express();
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const xlsx = require('xlsx');
 
-
-const app = express();
-const cors = require('cors');
 const allowedOrigins = ['https://makeit-fawn.vercel.app/'];
 app.use(cors({
     origin: allowedOrigins,
