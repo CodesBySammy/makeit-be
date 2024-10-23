@@ -4,6 +4,7 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const xlsx = require('xlsx');
+const multer = require('multer'); // Import multer
 
 const app = express();
 app.use(bodyParser.json());
@@ -12,7 +13,6 @@ app.use(bodyParser.json());
 const allowedOrigins = ['https://makeit-fawn.vercel.app'];
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
         if (allowedOrigins.indexOf(origin) === -1) {
             const msg = 'The CORS policy for this site does not allow access from the specified origin.';
@@ -35,13 +35,34 @@ const userSchema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
-}, { timestamps: true }); // Add timestamps for submission tracking
+    file: String, // Field for storing uploaded file path
+}, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
 
-// Route for form submission
-// Route for form submission
-app.post('/api/submit', async (req, res) => {
+// Configure multer for PDF file uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/'); // Specify the upload folder
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + '-' + file.originalname); // Unique filename
+    }
+});
+
+// Filter for PDF files only
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+        cb(null, true); // Accept the file
+    } else {
+        cb(new Error('Only PDF files are allowed!'), false); // Reject the file
+    }
+};
+
+const upload = multer({ storage, fileFilter });
+
+// Route for form submission with PDF upload
+app.post('/api/submit', upload.single('file'), async (req, res) => {
     const { name, email, phone } = req.body;
 
     // Trim and validate input on the backend as well
@@ -55,7 +76,12 @@ app.post('/api/submit', async (req, res) => {
             return res.status(400).json({ message: 'A submission with this email or phone number already exists.' });
         }
 
-        const newUser = new User({ name: name.trim(), email, phone: phone.trim() });
+        const newUser = new User({
+            name: name.trim(),
+            email,
+            phone: phone.trim(),
+            file: req.file.path, // Save the file path to the database
+        });
         await newUser.save();
         res.status(201).json({ message: 'User submitted successfully!' });
     } catch (error) {
@@ -63,7 +89,6 @@ app.post('/api/submit', async (req, res) => {
         res.status(500).json({ message: 'An error occurred while saving data.' });
     }
 });
-
 
 // Route to download responses in Excel format
 app.post('/api/download', async (req, res) => {
@@ -79,6 +104,7 @@ app.post('/api/download', async (req, res) => {
             Name: user.name,
             Email: user.email,
             Phone: user.phone,
+            File: user.file, // Include the file path in the response
             SubmittedAt: user.createdAt,
         }));
 
