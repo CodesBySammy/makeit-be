@@ -4,7 +4,9 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const xlsx = require('xlsx');
-const multer = require('multer'); // Import multer
+const multer = require('multer');
+const Grid = require('gridfs-stream');
+const GridFsStorage = require('multer-gridfs-storage');
 
 const app = express();
 app.use(bodyParser.json());
@@ -23,49 +25,45 @@ app.use(cors({
 }));
 
 // MongoDB connection
-mongoose.connect(process.env.MONGO_URI, {
+const mongoURI = process.env.MONGO_URI;
+mongoose.connect(mongoURI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
 })
-.then(() => console.log('MongoDB connected'))
+.then(() => {
+    console.log('MongoDB connected');
+    // Initialize GridFS
+    gfs = Grid(mongoose.connection.db, mongoose.mongo);
+})
 .catch(err => console.error('MongoDB connection error:', err));
+
+// Create storage engine
+const storage = new GridFsStorage({
+    url: mongoURI,
+    file: (req, file) => {
+        return {
+            filename: file.originalname,
+            bucketName: 'uploads' // Collection name
+        };
+    }
+});
+
+const upload = multer({ storage });
 
 // User schema
 const userSchema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
-    file: String, // Field for storing uploaded file path
+    fileId: { type: mongoose.Schema.Types.ObjectId, ref: 'uploads.files' }, // Reference to the uploaded file
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
-
-// Configure multer for PDF file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/'); // Specify the upload folder
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.originalname); // Unique filename
-    }
-});
-
-// Filter for PDF files only
-const fileFilter = (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
-        cb(null, true); // Accept the file
-    } else {
-        cb(new Error('Only PDF files are allowed!'), false); // Reject the file
-    }
-};
-
-const upload = multer({ storage, fileFilter });
 
 // Route for form submission with PDF upload
 app.post('/api/submit', upload.single('file'), async (req, res) => {
     const { name, email, phone } = req.body;
 
-    // Trim and validate input on the backend as well
     if (!name || !phone || name.trim().length < 2 || phone.trim().length < 5) {
         return res.status(400).json({ message: 'Invalid input. Please provide a valid name and phone number.' });
     }
@@ -80,8 +78,9 @@ app.post('/api/submit', upload.single('file'), async (req, res) => {
             name: name.trim(),
             email,
             phone: phone.trim(),
-            file: req.file.path, // Save the file path to the database
+            fileId: req.file.id // Store the GridFS file ID
         });
+
         await newUser.save();
         res.status(201).json({ message: 'User submitted successfully!' });
     } catch (error) {
@@ -100,12 +99,17 @@ app.post('/api/download', async (req, res) => {
 
     try {
         const users = await User.find().lean();
-        const excelData = users.map(user => ({
-            Name: user.name,
-            Email: user.email,
-            Phone: user.phone,
-            File: user.file, // Include the file path in the response
-            SubmittedAt: user.createdAt,
+        const excelData = await Promise.all(users.map(async user => {
+            const file = await gfs.files.findOne({ _id: user.fileId });
+            const fileLink = file ? `https://<your-domain>/api/files/${file.filename}` : 'No file uploaded'; // Adjust this link based on your app's URL
+
+            return {
+                Name: user.name,
+                Email: user.email,
+                Phone: user.phone,
+                SubmittedAt: user.createdAt,
+                FileLink: fileLink
+            };
         }));
 
         const workbook = xlsx.utils.book_new();
@@ -122,6 +126,17 @@ app.post('/api/download', async (req, res) => {
         console.error('Error generating Excel document:', error);
         res.status(500).json({ message: 'Error generating Excel document.' });
     }
+});
+
+// Route to serve files
+app.get('/api/files/:filename', (req, res) => {
+    gfs.files.findOne({ filename: req.params.filename }, (err, file) => {
+        if (!file || file.length === 0) {
+            return res.status(404).json({ message: 'File not found' });
+        }
+        const readstream = gfs.createReadStream(file._id);
+        readstream.pipe(res);
+    });
 });
 
 // Start server
