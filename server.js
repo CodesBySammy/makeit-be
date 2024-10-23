@@ -1,129 +1,94 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Form Submission</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
+require('dotenv').config(); // Load environment variables
+const express = require('express');
+const bodyParser = require('body-parser');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const xlsx = require('xlsx');
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+})
+.then(() => console.log('MongoDB connected'))
+.catch(err => console.error('MongoDB connection error:', err));
+
+// User schema
+const userSchema = new mongoose.Schema({
+    name: String,
+    email: { type: String, unique: true },
+    phone: { type: String, unique: true },
+}, { timestamps: true }); // Add timestamps for submission tracking
+
+const User = mongoose.model('User', userSchema);
+
+// Route for form submission
+app.post('/api/submit', async (req, res) => {
+    const { name, email, phone } = req.body;
+
+    try {
+        // Check if the user with the same email or phone already exists
+        const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
+        if (existingUser) {
+            return res.status(400).json({ message: 'A submission with this email or phone number already exists.' });
         }
-        .message {
-            margin-top: 20px;
-            color: green;
-        }
-        .error {
-            color: red;
-        }
-    </style>
-</head>
-<body>
 
-    <h2>Submit Your Details</h2>
-    <form id="userForm">
-        <label for="name">Name:</label><br>
-        <input type="text" id="name" name="name" required><br>
-        
-        <label for="email">Email:</label><br>
-        <input type="email" id="email" name="email" required><br>
-        
-        <label for="phone">Phone Number:</label><br>
-        <input type="tel" id="phone" name="phone" required><br><br>
-        
-        <button type="submit">Submit</button>
-    </form>
+        // If no match found, save the new user
+        const newUser = new User({ name, email, phone });
+        await newUser.save();
+        res.status(201).json({ message: 'User submitted successfully!' });
+    } catch (error) {
+        console.error('Error saving user:', error);
+        res.status(500).json({ message: 'An error occurred while saving data.' });
+    }
+});
 
-    <div id="message" class="message"></div>
-    <div id="error" class="error"></div>
+// Route to download responses in Excel format
+app.post('/api/download', async (req, res) => {
+    const { password } = req.body; // Get password from request body
 
-    <h2>Admin Download Responses</h2>
-    <input type="password" id="adminPassword" placeholder="Enter Admin Password">
-    <button id="downloadBtn">Download Responses</button>
+    // Check if the password matches
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.status(403).json({ message: 'Unauthorized access.' });
+    }
 
-    <script>
-        const form = document.getElementById('userForm');
-        const messageDiv = document.getElementById('message');
-        const errorDiv = document.getElementById('error');
-        const downloadBtn = document.getElementById('downloadBtn');
-        const adminPasswordInput = document.getElementById('adminPassword');
+    try {
+        const users = await User.find().lean(); // Fetch users and convert to plain JavaScript objects
 
-        // Handle form submission
-        form.onsubmit = async (e) => {
-            e.preventDefault(); // Prevent form from submitting normally
-            
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData);
-            errorDiv.textContent = ''; // Clear previous errors
-            messageDiv.textContent = ''; // Clear previous messages
+        // Prepare the data for Excel
+        const excelData = users.map(user => ({
+            Name: user.name,
+            Email: user.email,
+            Phone: user.phone,
+            SubmittedAt: user.createdAt, // Add timestamp
+        }));
 
-            try {
-                const response = await fetch('http://localhost:5000/api/submit', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data),
-                });
+        // Create a new workbook and a new worksheet
+        const workbook = xlsx.utils.book_new();
+        const worksheet = xlsx.utils.json_to_sheet(excelData);
 
-                const result = await response.json();
+        // Add the worksheet to the workbook
+        xlsx.utils.book_append_sheet(workbook, worksheet, 'Responses');
 
-                if (response.ok) {
-                    messageDiv.textContent = 'Thank you for your submission!';
-                    disableBackButtons(); // Disable back navigation
-                } else {
-                    errorDiv.textContent = result.message; // Show the error message
-                }
-            } catch (error) {
-                errorDiv.textContent = 'An error occurred. Please try again later.';
-            }
-        };
+        // Create a buffer and send the Excel document
+        const buffer = xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        res.set({
+            'Content-Disposition': 'attachment; filename="responses.xlsx"',
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        });
+        res.send(buffer);
+    } catch (error) {
+        console.error('Error generating Excel document:', error);
+        res.status(500).json({ message: 'Error generating Excel document.' });
+    }
+});
 
-        // Handle admin password and download responses
-        downloadBtn.onclick = async () => {
-            const password = adminPasswordInput.value;
-
-            if (!password) {
-                alert('Please enter the admin password.');
-                return;
-            }
-
-            try {
-                const response = await fetch('http://localhost:5000/api/download', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ password }) // Send password in body
-                });
-
-                if (response.ok) {
-                    // If the request is successful, download the file
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'responses.xlsx';
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                } else {
-                    const result = await response.json();
-                    alert(result.message); // Show unauthorized access message
-                }
-            } catch (error) {
-                alert('An error occurred while trying to download the responses.');
-            }
-        };
-
-        // Disable back buttons after submission
-        function disableBackButtons() {
-            history.pushState(null, '', location.href);
-            window.onpopstate = function () {
-                history.pushState(null, '', location.href);
-            };
-        }
-    </script>
-
-</body>
-</html>
+// Start server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
