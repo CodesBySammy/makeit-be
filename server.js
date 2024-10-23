@@ -5,8 +5,15 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const xlsx = require('xlsx');
 
+
 const app = express();
-app.use(cors());
+const cors = require('cors');
+const allowedOrigins = ['https://makeit-fawn.vercel.app/'];
+app.use(cors({
+    origin: allowedOrigins,
+    methods: ['GET', 'POST'], // Add any other methods you want to allow
+    credentials: true // If you need to send cookies or authentication headers
+}));
 app.use(bodyParser.json());
 
 // MongoDB connection
