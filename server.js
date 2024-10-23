@@ -6,7 +6,8 @@ const cors = require('cors');
 const xlsx = require('xlsx');
 const multer = require('multer');
 const Grid = require('gridfs-stream');
-const GridFsStorage = require('multer-gridfs-storage');
+const { GridFsStorage } = require('multer-gridfs-storage');
+
 
 const app = express();
 app.use(bodyParser.json());
