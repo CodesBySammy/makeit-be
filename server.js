@@ -40,8 +40,14 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model('User', userSchema);
 
 // Route for form submission
+// Route for form submission
 app.post('/api/submit', async (req, res) => {
     const { name, email, phone } = req.body;
+
+    // Trim and validate input on the backend as well
+    if (!name || !phone || name.trim().length < 2 || phone.trim().length < 5) {
+        return res.status(400).json({ message: 'Invalid input. Please provide a valid name and phone number.' });
+    }
 
     try {
         const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
@@ -49,7 +55,7 @@ app.post('/api/submit', async (req, res) => {
             return res.status(400).json({ message: 'A submission with this email or phone number already exists.' });
         }
 
-        const newUser = new User({ name, email, phone });
+        const newUser = new User({ name: name.trim(), email, phone: phone.trim() });
         await newUser.save();
         res.status(201).json({ message: 'User submitted successfully!' });
     } catch (error) {
@@ -57,6 +63,7 @@ app.post('/api/submit', async (req, res) => {
         res.status(500).json({ message: 'An error occurred while saving data.' });
     }
 });
+
 
 // Route to download responses in Excel format
 app.post('/api/download', async (req, res) => {
