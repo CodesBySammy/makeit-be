@@ -4,10 +4,6 @@ const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const xlsx = require('xlsx');
-const multer = require('multer');
-const Grid = require('gridfs-stream');
-const { GridFsStorage } = require('multer-gridfs-storage');
-
 
 const app = express();
 app.use(bodyParser.json());
@@ -16,6 +12,7 @@ app.use(bodyParser.json());
 const allowedOrigins = ['https://makeit-fawn.vercel.app'];
 app.use(cors({
     origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
         if (!origin) return callback(null, true);
         if (allowedOrigins.indexOf(origin) === -1) {
             const msg = 'The CORS policy for this site does not allow access from the specified origin.';
@@ -26,45 +23,28 @@ app.use(cors({
 }));
 
 // MongoDB connection
-const mongoURI = process.env.MONGO_URI;
-mongoose.connect(mongoURI, {
+mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
 })
-.then(() => {
-    console.log('MongoDB connected');
-    // Initialize GridFS
-    gfs = Grid(mongoose.connection.db, mongoose.mongo);
-})
+.then(() => console.log('MongoDB connected'))
 .catch(err => console.error('MongoDB connection error:', err));
-
-// Create storage engine
-const storage = new GridFsStorage({
-    url: mongoURI,
-    file: (req, file) => {
-        return {
-            filename: file.originalname,
-            bucketName: 'uploads' // Collection name
-        };
-    }
-});
-
-const upload = multer({ storage });
 
 // User schema
 const userSchema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
-    fileId: { type: mongoose.Schema.Types.ObjectId, ref: 'uploads.files' }, // Reference to the uploaded file
-}, { timestamps: true });
+}, { timestamps: true }); // Add timestamps for submission tracking
 
 const User = mongoose.model('User', userSchema);
 
-// Route for form submission with PDF upload
-app.post('/api/submit', upload.single('file'), async (req, res) => {
+// Route for form submission
+// Route for form submission
+app.post('/api/submit', async (req, res) => {
     const { name, email, phone } = req.body;
 
+    // Trim and validate input on the backend as well
     if (!name || !phone || name.trim().length < 2 || phone.trim().length < 5) {
         return res.status(400).json({ message: 'Invalid input. Please provide a valid name and phone number.' });
     }
@@ -75,13 +55,7 @@ app.post('/api/submit', upload.single('file'), async (req, res) => {
             return res.status(400).json({ message: 'A submission with this email or phone number already exists.' });
         }
 
-        const newUser = new User({
-            name: name.trim(),
-            email,
-            phone: phone.trim(),
-            fileId: req.file.id // Store the GridFS file ID
-        });
-
+        const newUser = new User({ name: name.trim(), email, phone: phone.trim() });
         await newUser.save();
         res.status(201).json({ message: 'User submitted successfully!' });
     } catch (error) {
@@ -89,6 +63,7 @@ app.post('/api/submit', upload.single('file'), async (req, res) => {
         res.status(500).json({ message: 'An error occurred while saving data.' });
     }
 });
+
 
 // Route to download responses in Excel format
 app.post('/api/download', async (req, res) => {
@@ -100,17 +75,11 @@ app.post('/api/download', async (req, res) => {
 
     try {
         const users = await User.find().lean();
-        const excelData = await Promise.all(users.map(async user => {
-            const file = await gfs.files.findOne({ _id: user.fileId });
-            const fileLink = file ? `https://<your-domain>/api/files/${file.filename}` : 'No file uploaded'; // Adjust this link based on your app's URL
-
-            return {
-                Name: user.name,
-                Email: user.email,
-                Phone: user.phone,
-                SubmittedAt: user.createdAt,
-                FileLink: fileLink
-            };
+        const excelData = users.map(user => ({
+            Name: user.name,
+            Email: user.email,
+            Phone: user.phone,
+            SubmittedAt: user.createdAt,
         }));
 
         const workbook = xlsx.utils.book_new();
@@ -129,19 +98,8 @@ app.post('/api/download', async (req, res) => {
     }
 });
 
-// Route to serve files
-app.get('/api/files/:filename', (req, res) => {
-    gfs.files.findOne({ filename: req.params.filename }, (err, file) => {
-        if (!file || file.length === 0) {
-            return res.status(404).json({ message: 'File not found' });
-        }
-        const readstream = gfs.createReadStream(file._id);
-        readstream.pipe(res);
-    });
-});
-
 // Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(Server is running on port ${PORT});
 });
