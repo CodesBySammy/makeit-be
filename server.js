@@ -1,3 +1,4 @@
+
 require('dotenv').config(); // Load environment variables
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -79,7 +80,7 @@ app.post('/api/download', async (req, res) => {
             Name: user.name,
             Email: user.email,
             Phone: user.phone,
-            SubmittedAt: user.createdAt,
+            SubmittedAt: new Date(user.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) // Formats date and time
         }));
 
         const workbook = xlsx.utils.book_new();
@@ -97,6 +98,7 @@ app.post('/api/download', async (req, res) => {
         res.status(500).json({ message: 'Error generating Excel document.' });
     }
 });
+
 
 // Start server
 const PORT = process.env.PORT || 5000;
