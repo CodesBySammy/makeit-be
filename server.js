@@ -1,4 +1,3 @@
-
 require('dotenv').config(); // Load environment variables
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -9,14 +8,20 @@ const xlsx = require('xlsx');
 const app = express();
 app.use(bodyParser.json());
 
+// Ensure environment variables are loaded
+if (!process.env.MONGO_URI || !process.env.ADMIN_PASSWORD) {
+    console.error('Error: Required environment variables are not set.');
+    process.exit(1);
+}
+
 // CORS configuration
 const allowedOrigins = ['https://makeit-fawn.vercel.app'];
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin) return callback(null, true);
+        if (!origin) return callback(null, true); // Allow requests with no origin
         if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'The CORS policy for this site does not allow access from the specified origin.';
+            const msg = 'CORS policy does not allow access from the specified origin.';
+            console.error(msg);
             return callback(new Error(msg), false);
         }
         return callback(null, true);
@@ -36,16 +41,15 @@ const userSchema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
-}, { timestamps: true }); // Add timestamps for submission tracking
+}, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
 
 // Route for form submission
-// Route for form submission
 app.post('/api/submit', async (req, res) => {
     const { name, email, phone } = req.body;
 
-    // Trim and validate input on the backend as well
+    // Trim and validate input on the backend
     if (!name || !phone || name.trim().length < 2 || phone.trim().length < 5) {
         return res.status(400).json({ message: 'Invalid input. Please provide a valid name and phone number.' });
     }
@@ -65,7 +69,6 @@ app.post('/api/submit', async (req, res) => {
     }
 });
 
-
 // Route to download responses in Excel format
 app.post('/api/download', async (req, res) => {
     const { password } = req.body;
@@ -80,7 +83,7 @@ app.post('/api/download', async (req, res) => {
             Name: user.name,
             Email: user.email,
             Phone: user.phone,
-            SubmittedAt: new Date(user.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) // Formats date and time
+            SubmittedAt: new Date(user.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
         }));
 
         const workbook = xlsx.utils.book_new();
@@ -98,7 +101,6 @@ app.post('/api/download', async (req, res) => {
         res.status(500).json({ message: 'Error generating Excel document.' });
     }
 });
-
 
 // Start server
 const PORT = process.env.PORT || 5000;
