@@ -8,20 +8,13 @@ const xlsx = require('xlsx');
 const app = express();
 app.use(bodyParser.json());
 
-// Ensure environment variables are loaded
-if (!process.env.MONGO_URI || !process.env.ADMIN_PASSWORD) {
-    console.error('Error: Required environment variables are not set.');
-    process.exit(1);
-}
-
 // CORS configuration
 const allowedOrigins = ['https://makeit-fawn.vercel.app'];
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin) return callback(null, true); // Allow requests with no origin
+        if (!origin) return callback(null, true);
         if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = 'CORS policy does not allow access from the specified origin.';
-            console.error(msg);
+            const msg = 'The CORS policy for this site does not allow access from the specified origin.';
             return callback(new Error(msg), false);
         }
         return callback(null, true);
@@ -36,11 +29,12 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('MongoDB connected'))
 .catch(err => console.error('MongoDB connection error:', err));
 
-// User schema
+// User schema with attendance field
 const userSchema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
+    attendance: { type: String, default: 'Absent' }, // Attendance field
 }, { timestamps: true });
 
 const User = mongoose.model('User', userSchema);
@@ -49,7 +43,6 @@ const User = mongoose.model('User', userSchema);
 app.post('/api/submit', async (req, res) => {
     const { name, email, phone } = req.body;
 
-    // Trim and validate input on the backend
     if (!name || !phone || name.trim().length < 2 || phone.trim().length < 5) {
         return res.status(400).json({ message: 'Invalid input. Please provide a valid name and phone number.' });
     }
@@ -69,7 +62,7 @@ app.post('/api/submit', async (req, res) => {
     }
 });
 
-// Route to download responses in Excel format
+// Route to download responses with attendance in Excel format
 app.post('/api/download', async (req, res) => {
     const { password } = req.body;
 
@@ -83,6 +76,7 @@ app.post('/api/download', async (req, res) => {
             Name: user.name,
             Email: user.email,
             Phone: user.phone,
+            Attendance: user.attendance,
             SubmittedAt: new Date(user.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
         }));
 
@@ -99,6 +93,76 @@ app.post('/api/download', async (req, res) => {
     } catch (error) {
         console.error('Error generating Excel document:', error);
         res.status(500).json({ message: 'Error generating Excel document.' });
+    }
+});
+
+// Route to get all user data with attendance info for admin view
+app.post('/api/show', async (req, res) => {
+    const { password } = req.body;
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.status(403).json({ message: 'Unauthorized access.' });
+    }
+
+    try {
+        const users = await User.find().lean();
+        res.status(200).json(users);
+    } catch (error) {
+        console.error('Error retrieving users:', error);
+        res.status(500).json({ message: 'Error retrieving users.' });
+    }
+});
+
+// Route to update attendance for all users
+app.put('/api/attendance', async (req, res) => {
+    const { password, status } = req.body;
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.status(403).json({ message: 'Unauthorized access.' });
+    }
+
+    try {
+        await User.updateMany({}, { attendance: status });
+        res.status(200).json({ message: `All users marked as ${status}.` });
+    } catch (error) {
+        console.error('Error updating attendance for all users:', error);
+        res.status(500).json({ message: 'Error updating attendance.' });
+    }
+});
+
+// Route to update attendance for a specific user
+app.put('/api/attendance/:id', async (req, res) => {
+    const { id } = req.params;
+    const { password, status } = req.body;
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.status(403).json({ message: 'Unauthorized access.' });
+    }
+
+    try {
+        await User.findByIdAndUpdate(id, { attendance: status });
+        res.status(200).json({ message: `User ${id} marked as ${status}.` });
+    } catch (error) {
+        console.error('Error updating attendance for user:', error);
+        res.status(500).json({ message: 'Error updating user attendance.' });
+    }
+});
+
+// Route to edit user details
+app.put('/api/edit/:id', async (req, res) => {
+    const { id } = req.params;
+    const { password, name, email, phone } = req.body;
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+        return res.status(403).json({ message: 'Unauthorized access.' });
+    }
+
+    try {
+        await User.findByIdAndUpdate(id, { name, email, phone });
+        res.status(200).json({ message: 'User details updated successfully.' });
+    } catch (error) {
+        console.error('Error updating user details:', error);
+        res.status(500).json({ message: 'Error updating user details.' });
     }
 });
 
