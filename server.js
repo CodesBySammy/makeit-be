@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema({
     attendance: { type: String, default: 'Absent' }, // Attendance field
 }, { timestamps: true });
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema, 'formdata');
 
 // Route for form submission
 app.post('/api/submit', async (req, res) => {
