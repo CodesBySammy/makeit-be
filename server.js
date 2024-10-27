@@ -30,14 +30,14 @@ mongoose.connect(process.env.MONGO_URI, {
 .catch(err => console.error('MongoDB connection error:', err));
 
 // User schema with attendance field
-const userSchema = new mongoose.Schema({
+const formdatachema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
     attendance: { type: String, default: 'Absent' }, // Attendance field
 }, { timestamps: true });
 
-const User = mongoose.model('User', userSchema, 'formdata');
+const User = mongoose.model('User', userschema, 'formdata');
 
 // Route for form submission
 app.post('/api/submit', async (req, res) => {
@@ -71,8 +71,8 @@ app.post('/api/download', async (req, res) => {
     }
 
     try {
-        const users = await User.find().lean();
-        const excelData = users.map(user => ({
+        const formdata = await User.find().lean();
+        const excelData = formdata.map(user => ({
             Name: user.name,
             Email: user.email,
             Phone: user.phone,
@@ -105,15 +105,15 @@ app.post('/api/show', async (req, res) => {
     }
 
     try {
-        const users = await User.find().lean();
-        res.status(200).json(users);
+        const formdata = await User.find().lean();
+        res.status(200).json(formdata);
     } catch (error) {
-        console.error('Error retrieving users:', error);
-        res.status(500).json({ message: 'Error retrieving users.' });
+        console.error('Error retrieving formdata:', error);
+        res.status(500).json({ message: 'Error retrieving formdata.' });
     }
 });
 
-// Route to update attendance for all users
+// Route to update attendance for all formdata
 app.put('/api/attendance', async (req, res) => {
     const { password, status } = req.body;
 
@@ -123,9 +123,9 @@ app.put('/api/attendance', async (req, res) => {
 
     try {
         await User.updateMany({}, { attendance: status });
-        res.status(200).json({ message: `All users marked as ${status}.` });
+        res.status(200).json({ message: `All formdata marked as ${status}.` });
     } catch (error) {
-        console.error('Error updating attendance for all users:', error);
+        console.error('Error updating attendance for all formdata:', error);
         res.status(500).json({ message: 'Error updating attendance.' });
     }
 });
