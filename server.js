@@ -30,14 +30,14 @@ mongoose.connect(process.env.MONGO_URI, {
 .catch(err => console.error('MongoDB connection error:', err));
 
 // User schema with attendance field
-const formdatachema = new mongoose.Schema({
+const formdataschema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
     attendance: { type: String, default: 'Absent' }, // Attendance field
 }, { timestamps: true });
 
-const User = mongoose.model('User', userschema, 'formdata');
+const User = mongoose.model('User', formdataschema, 'formdata');
 
 // Route for form submission
 app.post('/api/submit', async (req, res) => {
