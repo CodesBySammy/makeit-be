@@ -34,7 +34,7 @@ const formdataschema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
-    gender: {type: String},
+    gender: {type: String },
     attendance: { type: String, default: 'Absent' }, // Attendance field
 }, { timestamps: true });
 
@@ -54,7 +54,7 @@ app.post('/api/submit', async (req, res) => {
             return res.status(400).json({ message: 'A submission with this email or phone number already exists.' });
         }
 
-        const newUser = new User({ name: name.trim(), email, phone: phone.trim() });
+        const newUser = new User({ name: name.trim(), email, phone: phone.trim(), gender: gender});
         await newUser.save();
         res.status(201).json({ message: 'User submitted successfully!' });
     } catch (error) {
