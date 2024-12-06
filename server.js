@@ -34,6 +34,7 @@ const formdataschema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
+    gender: {type: String},
     attendance: { type: String, default: 'Absent' }, // Attendance field
 }, { timestamps: true });
 
