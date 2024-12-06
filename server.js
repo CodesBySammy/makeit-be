@@ -41,7 +41,7 @@ const User = mongoose.model('User', formdataschema, 'formdata');
 
 // Route for form submission
 app.post('/api/submit', async (req, res) => {
-    const { name, email, phone } = req.body;
+    const { name, email, phone, gender } = req.body;
 
     if (!name || !phone || name.trim().length < 2 || phone.trim().length < 5) {
         return res.status(400).json({ message: 'Invalid input. Please provide a valid name and phone number.' });
@@ -77,6 +77,7 @@ app.post('/api/download', async (req, res) => {
             Email: user.email,
             Phone: user.phone,
             Attendance: user.attendance,
+            Gender: user.gender,
             SubmittedAt: new Date(user.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
         }));
 
