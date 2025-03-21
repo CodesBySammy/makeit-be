@@ -34,7 +34,6 @@ const formdataschema = new mongoose.Schema({
     name: String,
     email: { type: String, unique: true },
     phone: { type: String, unique: true },
-    gender: {type: String },
     attendance: { type: String, default: 'Absent' }, // Attendance field
 }, { timestamps: true });
 
@@ -42,7 +41,7 @@ const User = mongoose.model('User', formdataschema, 'formdata');
 
 // Route for form submission
 app.post('/api/submit', async (req, res) => {
-    const { name, email, phone, gender } = req.body;
+    const { name, email, phone} = req.body;
 
     if (!name || !phone || name.trim().length < 2 || phone.trim().length < 5) {
         return res.status(400).json({ message: 'Invalid input. Please provide a valid name and phone number.' });
@@ -54,7 +53,7 @@ app.post('/api/submit', async (req, res) => {
             return res.status(400).json({ message: 'A submission with this email or phone number already exists.' });
         }
 
-        const newUser = new User({ name: name.trim(), email, phone: phone.trim(), gender: gender});
+        const newUser = new User({ name: name.trim(), email, phone: phone.trim()});
         await newUser.save();
         res.status(201).json({ message: 'User submitted successfully!' });
     } catch (error) {
@@ -78,7 +77,6 @@ app.post('/api/download', async (req, res) => {
             Email: user.email,
             Phone: user.phone,
             Attendance: user.attendance,
-            Gender: user.gender,
             SubmittedAt: new Date(user.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
         }));
 
